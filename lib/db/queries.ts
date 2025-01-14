@@ -82,6 +82,10 @@ export async function deleteChatById({ id }: { id: string }) {
 }
 
 export async function getChatsByUserId({ id }: { id: string }) {
+  if (!id) {
+    throw new Error('User ID is required');
+  }
+
   try {
     return await db
       .select()
@@ -89,7 +93,7 @@ export async function getChatsByUserId({ id }: { id: string }) {
       .where(eq(chat.userId, id))
       .orderBy(desc(chat.createdAt));
   } catch (error) {
-    console.error('Failed to get chats by user from database');
+    console.error('Failed to get chats by user from database:', error);
     throw error;
   }
 }

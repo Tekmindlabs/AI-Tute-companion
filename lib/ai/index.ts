@@ -1,6 +1,6 @@
 // lib/ai/index.ts
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
-import { experimental_wrapLanguageModel as wrapLanguageModel } from "ai";
+import { experimental_wrapLanguageModel as wrapLanguageModel, type LanguageModelV1CallOptions } from "ai";
 import { customMiddleware } from "./custom-middleware";
 
 // Initialize the Google AI client
@@ -19,23 +19,23 @@ class GoogleAIWrapper {
     this.modelId = modelName;
   }
 
-  // Implement required doGenerate method
-  async doGenerate(prompt: string) {
-    const result = await this.model.generateContent(prompt);
+  // Updated doGenerate method to accept LanguageModelV1CallOptions
+  async doGenerate(options: LanguageModelV1CallOptions) {
+    const result = await this.model.generateContent(options.messages[0].content);
     const response = await result.response;
     return {
-      content: response.text(),
+      text: response.text(),
     };
   }
 
-  // Implement required doStream method
-  async *doStream(prompt: string) {
-    const result = await this.model.generateContentStream(prompt);
+  // Updated doStream method to accept LanguageModelV1CallOptions
+  async *doStream(options: LanguageModelV1CallOptions) {
+    const result = await this.model.generateContentStream(options.messages[0].content);
     for await (const chunk of result.stream) {
       const text = chunk.text();
       if (text) {
         yield {
-          content: text,
+          text: text,
         };
       }
     }

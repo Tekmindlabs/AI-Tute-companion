@@ -1,5 +1,5 @@
 // app/(auth)/auth.config.ts
-import type { NextAuthConfig } from 'next-auth';
+import type { NextAuthConfig } from 'next-auth/types';
 
 export const authConfig: NextAuthConfig = {
   pages: {
@@ -7,7 +7,13 @@ export const authConfig: NextAuthConfig = {
     newUser: '/'
   },
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
+    authorized({ 
+      auth, 
+      request: { nextUrl } 
+    }: { 
+      auth: { user?: any } | null; 
+      request: { nextUrl: URL } 
+    }) {
       const isLoggedIn = !!auth?.user;
       const isOnChat = nextUrl.pathname.startsWith('/');
       const isOnLogin = nextUrl.pathname.startsWith('/login');
@@ -21,12 +27,7 @@ export const authConfig: NextAuthConfig = {
         return true;
       }
 
-      if (isOnChat) {
-        return isLoggedIn;
-      }
-
       return isLoggedIn;
     }
-  },
-  providers: [] // configured in auth.ts
+  }
 };

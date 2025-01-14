@@ -12,9 +12,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000']
     },
-  },
-  // Add Edge Runtime configuration
-  runtime: 'edge',
+  }
+  // Remove the runtime configuration from here
 };
 
 export default nextConfig;

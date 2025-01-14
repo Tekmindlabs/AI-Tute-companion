@@ -52,3 +52,20 @@ export const geminiFlashModel = wrapLanguageModel({
   model: new GoogleAIWrapper("gemini-1.5-flash-002"),
   middleware: customMiddleware,
 });
+
+/**
+ * Generates a title for a chat conversation based on the user message
+ * @param message The user message to generate title from
+ * @returns Promise<string> The generated title
+ */
+export async function generateTitleFromUserMessage({ message }: { message: CoreUserMessage }): Promise<string> {
+  const prompt = `Generate a concise title (max 5 words) for this chat message: "${message.content}"`;
+  
+  const result = await geminiProModel.doGenerate({
+    messages: [{ role: 'user', content: prompt }],
+    maxTokens: 20,
+    temperature: 0.7,
+  });
+
+  return result.text.trim();
+}

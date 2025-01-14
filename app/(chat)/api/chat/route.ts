@@ -1,5 +1,8 @@
 import {
   type Message,
+  type CoreMessage,
+  type CoreSystemMessage,
+  type CoreUserMessage,
   convertToCoreMessages,
   createDataStreamResponse,
   streamObject,
@@ -32,6 +35,14 @@ import {
 } from '@/lib/utils';
 
 import { generateTitleFromUserMessage } from '../../actions';
+import { Session } from 'next-auth';
+
+interface ExtendedSession extends Session {
+  user?: {
+    id: string;
+    email: string;
+  };
+}
 
 export const maxDuration = 60;
 
@@ -52,24 +63,19 @@ const weatherTools: AllowedTools[] = ['getWeather'];
 const allTools: AllowedTools[] = [...blocksTools, ...weatherTools];
 
 export async function POST(request: Request) {
-  const {
-    id,
-    messages,
-  }: { id: string; messages: Array<Message> } = await request.json();
+  const { id, messages }: { id: string; messages: Array<Message> } = await request.json();
 
-  const session = await auth();
+  const session = await auth() as ExtendedSession;
 
   if (!session || !session.user || !session.user.id) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  
-
   const coreMessages = convertToCoreMessages(messages);
   const userMessage = getMostRecentUserMessage(coreMessages);
 
-  if (!userMessage) {
-    return new Response('No user message found', { status: 400 });
+  if (!userMessage || userMessage.role !== 'user') {
+    return new Response('No valid user message found', { status: 400 });
   }
 
   const chat = await getChatById({ id });
@@ -82,17 +88,12 @@ export async function POST(request: Request) {
   const userMessageId = generateUUID();
 
   await saveMessages({
-    messages: [
-      { ...userMessage, id: userMessageId, createdAt: new Date(), chatId: id },
-    ],
+    messages: [{ ...userMessage, id: userMessageId, createdAt: new Date(), chatId: id }],
   });
 
   return createDataStreamResponse({
     execute: (dataStream) => {
-      dataStream.writeData({
-        type: 'user-message-id',
-        content: userMessageId,
-      });
+      dataStream.writeData({ type: 'user-message-id', content: userMessageId });
 
       const result = streamText({
         model: geminiProModel,
@@ -127,25 +128,13 @@ export async function POST(request: Request) {
               const id = generateUUID();
               let draftText = '';
 
-              dataStream.writeData({
-                type: 'id',
-                content: id,
-              });
+              dataStream.writeData({ type: 'id', content: id });
 
-              dataStream.writeData({
-                type: 'title',
-                content: title,
-              });
+              dataStream.writeData({ type: 'title', content: title });
 
-              dataStream.writeData({
-                type: 'kind',
-                content: kind,
-              });
+              dataStream.writeData({ type: 'kind', content: kind });
 
-              dataStream.writeData({
-                type: 'clear',
-                content: '',
-              });
+              dataStream.writeData({ type: 'clear', content: '' });
 
               if (kind === 'text') {
                 const { fullStream } = streamText({
@@ -162,10 +151,7 @@ export async function POST(request: Request) {
                     const { textDelta } = delta;
 
                     draftText += textDelta;
-                    dataStream.writeData({
-                      type: 'text-delta',
-                      content: textDelta,
-                    });
+                    dataStream.writeData({ type: 'text-delta', content: textDelta });
                   }
                 }
 
@@ -175,9 +161,7 @@ export async function POST(request: Request) {
                   model: geminiProModel,
                   system: codePrompt,
                   prompt: title,
-                  schema: z.object({
-                    code: z.string(),
-                  }),
+                  schema: z.object({ code: z.string() }),
                 });
 
                 for await (const delta of fullStream) {
@@ -188,10 +172,7 @@ export async function POST(request: Request) {
                     const { code } = object;
 
                     if (code) {
-                      dataStream.writeData({
-                        type: 'code-delta',
-                        content: code ?? '',
-                      });
+                      dataStream.writeData({ type: 'code-delta', content: code ?? '' });
 
                       draftText = code;
                     }
@@ -215,8 +196,7 @@ export async function POST(request: Request) {
                 id,
                 title,
                 kind,
-                content:
-                  'A document was created and is now visible to the user.',
+                content: 'A document was created and is now visible to the user.',
               };
             },
           },
@@ -232,25 +212,19 @@ export async function POST(request: Request) {
               const document = await getDocumentById({ id });
 
               if (!document) {
-                return {
-                  error: 'Document not found',
-                };
+                return { error: 'Document not found' };
               }
 
               const { content: currentContent } = document;
               let draftText = '';
 
-              dataStream.writeData({
-                type: 'clear',
-                content: document.title,
-              });
+              dataStream.writeData({ type: 'clear', content: document.title });
 
               if (document.kind === 'text') {
                 const { fullStream } = streamText({
                   model: geminiProModel,
                   system: updateDocumentPrompt(currentContent, 'text'),
                   prompt: description,
-                  
                 });
 
                 for await (const delta of fullStream) {
@@ -260,10 +234,7 @@ export async function POST(request: Request) {
                     const { textDelta } = delta;
 
                     draftText += textDelta;
-                    dataStream.writeData({
-                      type: 'text-delta',
-                      content: textDelta,
-                    });
+                    dataStream.writeData({ type: 'text-delta', content: textDelta });
                   }
                 }
 
@@ -273,9 +244,7 @@ export async function POST(request: Request) {
                   model: geminiProModel,
                   system: updateDocumentPrompt(currentContent, 'code'),
                   prompt: description,
-                  schema: z.object({
-                    code: z.string(),
-                  }),
+                  schema: z.object({ code: z.string() }),
                 });
 
                 for await (const delta of fullStream) {
@@ -286,10 +255,7 @@ export async function POST(request: Request) {
                     const { code } = object;
 
                     if (code) {
-                      dataStream.writeData({
-                        type: 'code-delta',
-                        content: code ?? '',
-                      });
+                      dataStream.writeData({ type: 'code-delta', content: code ?? '' });
 
                       draftText = code;
                     }
@@ -328,9 +294,7 @@ export async function POST(request: Request) {
               const document = await getDocumentById({ id: documentId });
 
               if (!document || !document.content) {
-                return {
-                  error: 'Document not found',
-                };
+                return { error: 'Document not found' };
               }
 
               const suggestions: Array<
@@ -366,10 +330,7 @@ export async function POST(request: Request) {
                   isResolved: false,
                 };
 
-                dataStream.writeData({
-                  type: 'suggestion',
-                  content: suggestion,
-                });
+                dataStream.writeData({ type: 'suggestion', content: suggestion });
 
                 suggestions.push(suggestion);
               }
@@ -399,29 +360,26 @@ export async function POST(request: Request) {
         onFinish: async ({ response }) => {
           if (session.user?.id) {
             try {
-              const responseMessagesWithoutIncompleteToolCalls =
-                sanitizeResponseMessages(response.messages);
+              const responseMessagesWithoutIncompleteToolCalls = sanitizeResponseMessages(
+                response.messages,
+              );
 
               await saveMessages({
-                messages: responseMessagesWithoutIncompleteToolCalls.map(
-                  (message) => {
-                    const messageId = generateUUID();
+                messages: responseMessagesWithoutIncompleteToolCalls.map((message) => {
+                  const messageId = generateUUID();
 
-                    if (message.role === 'assistant') {
-                      dataStream.writeMessageAnnotation({
-                        messageIdFromServer: messageId,
-                      });
-                    }
+                  if (message.role === 'assistant') {
+                    dataStream.writeMessageAnnotation({ messageIdFromServer: messageId });
+                  }
 
-                    return {
-                      id: messageId,
-                      chatId: id,
-                      role: message.role,
-                      content: message.content,
-                      createdAt: new Date(),
-                    };
-                  },
-                ),
+                  return {
+                    id: messageId,
+                    chatId: id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: new Date(),
+                  };
+                }),
               });
             } catch (error) {
               console.error('Failed to save chat');
@@ -447,7 +405,7 @@ export async function DELETE(request: Request) {
     return new Response('Not Found', { status: 404 });
   }
 
-  const session = await auth();
+  const session = await auth() as ExtendedSession;
 
   if (!session || !session.user) {
     return new Response('Unauthorized', { status: 401 });

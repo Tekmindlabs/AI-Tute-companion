@@ -9,18 +9,12 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    serverActions: true,
+    serverActions: {
+      allowedOrigins: ['localhost:3000']
+    },
   },
-  // Add explicit middleware configuration
-  middleware: {
-    // Ensure middleware only runs on matching paths
-    matcher: [
-      '/',
-      '/login',
-      '/register',
-      '/((?!api|_next/static|_next/image|favicon.ico).*)',
-    ],
-  }
+  // Add Edge Runtime configuration
+  runtime: 'edge',
 };
 
 export default nextConfig;

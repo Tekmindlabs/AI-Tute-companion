@@ -1,16 +1,14 @@
-// middleware.ts
-import { auth } from '@/app/(auth)/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export default auth((req) => {
+export function middleware(request: NextRequest) {
   try {
     return NextResponse.next();
   } catch (error) {
     console.error('Middleware error:', error);
-    return NextResponse.redirect(new URL('/login', req.url));
+    return NextResponse.redirect(new URL('/login', request.url));
   }
-});
+}
 
 export const config = {
   matcher: [

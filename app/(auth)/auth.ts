@@ -1,21 +1,14 @@
 import { compare } from 'bcrypt-ts';
 import NextAuth, { type User, type Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-
 import { getUser } from '@/lib/db/queries';
-
 import { authConfig } from './auth.config';
 
 interface ExtendedSession extends Session {
   user: User;
 }
 
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth({
+const handler = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
@@ -23,7 +16,6 @@ export const {
       async authorize({ email, password }: any) {
         const users = await getUser(email);
         if (users.length === 0) return null;
-        // biome-ignore lint: Forbidden non-null assertion.
         const passwordsMatch = await compare(password, users[0].password!);
         if (!passwordsMatch) return null;
         return users[0] as any;
@@ -35,7 +27,6 @@ export const {
       if (user) {
         token.id = user.id;
       }
-
       return token;
     },
     async session({
@@ -48,8 +39,13 @@ export const {
       if (session.user) {
         session.user.id = token.id as string;
       }
-
       return session;
     },
   },
 });
+
+// Export the auth function and other utilities
+export const auth = handler.auth;
+export const signIn = handler.signIn;
+export const signOut = handler.signOut;
+export const { GET, POST } = handler;
